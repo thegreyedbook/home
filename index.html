@@ -314,7 +314,7 @@ function render(list){
 function escapeHtml(s){
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
-const escapeAttr = escapeHtml;   // same escaping is safe for attribute values
+function escapeAttr(s){ return escapeHtml(s); }   // hoisted; same escaping is safe for attributes
 </script>
 </body>
 </html>
