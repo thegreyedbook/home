@@ -103,31 +103,39 @@ body{
 
 /* ---- repo rows ---- */
 .repo{
+  position:relative;
   display:grid;grid-template-columns:1fr auto;gap:2px 14px;align-items:baseline;
   padding:16px 12px 16px 14px;margin:0 -12px 0 -14px;
   border-bottom:1px solid var(--line);border-left:2px solid transparent;
-  text-decoration:none;color:inherit;
   transition:background .15s ease, border-color .15s ease;
 }
-.repo:hover,.repo:focus-visible{
-  background:var(--panel-2);border-left-color:var(--accent);outline:none;
+.repo:hover,.repo:focus-within{background:var(--panel-2);border-left-color:var(--accent)}
+/* the repo name is the primary link; ::after stretches it over the whole row */
+.repo-name{
+  grid-column:1;grid-row:1;
+  font-family:var(--mono);font-size:16px;font-weight:500;color:var(--text);text-decoration:none;
 }
-.repo:focus-visible{box-shadow:inset 0 0 0 1px var(--accent-dim)}
-.repo-name{font-family:var(--mono);font-size:16px;font-weight:500;color:var(--text);grid-column:1}
+.repo-name::after{content:"";position:absolute;inset:0;z-index:1}
 .repo:hover .repo-name{color:var(--accent)}
+.repo-name:focus-visible{outline:2px solid var(--accent-dim);outline-offset:3px;border-radius:3px}
 .repo-lang{
   grid-column:2;grid-row:1;font-family:var(--mono);font-size:12px;color:var(--muted);
   display:inline-flex;align-items:center;gap:6px;white-space:nowrap;
 }
 .dot{width:9px;height:9px;border-radius:50%;background:var(--muted);flex:0 0 auto}
-.repo-desc{grid-column:1 / -1;grid-row:2;color:var(--muted);font-size:14px;margin-top:4px;max-width:60ch}
+.repo-desc{grid-column:1;grid-row:2;color:var(--muted);font-size:14px;margin-top:4px;max-width:56ch}
 .repo-desc.empty{font-family:var(--mono);color:var(--faint);font-size:13px}
-.open{
-  grid-column:2;grid-row:2;align-self:end;
-  font-family:var(--mono);font-size:12px;color:var(--accent);
-  opacity:0;transform:translateX(-4px);transition:opacity .15s,transform .15s;white-space:nowrap;
+/* small secondary link straight to the deployed asset */
+.asset{
+  grid-column:2;grid-row:2;justify-self:end;align-self:center;
+  position:relative;z-index:2;white-space:nowrap;
+  font-family:var(--mono);font-size:12px;color:var(--accent);text-decoration:none;
+  border:1px solid var(--accent-dim);border-radius:7px;padding:4px 10px;
+  transition:background .15s ease, border-color .15s ease;
 }
-.repo:hover .open,.repo:focus-visible .open{opacity:1;transform:translateX(0)}
+.asset:hover{background:rgba(63,185,201,.13);border-color:var(--accent)}
+.asset:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.asset .arr{opacity:.7}
 
 /* ---- footer ---- */
 .foot{margin-top:26px;font-family:var(--mono);font-size:12.5px;color:var(--faint)}
@@ -135,13 +143,14 @@ body{
 .foot a:hover{color:var(--accent)}
 
 @media (max-width:460px){
-  .repo-lang{grid-row:auto;grid-column:1 / -1;margin-top:2px}
-  .repo-desc{grid-row:auto}
-  .open{display:none}
+  .repo{grid-template-columns:1fr}
+  .repo-lang{grid-column:1;grid-row:auto;margin-top:2px}
+  .repo-desc{grid-column:1;grid-row:auto;max-width:none}
+  .asset{grid-column:1;grid-row:auto;justify-self:start;margin-top:10px}
 }
 @media (prefers-reduced-motion:reduce){
   .prompt{animation:none;border-right-color:transparent;width:100%}
-  .repo,.open,.refreshing{transition:none}
+  .repo,.asset,.refreshing{transition:none}
 }
 </style>
 </head>
@@ -206,12 +215,12 @@ const PINNED = [];
    can't run (e.g. a sandboxed preview). On the deployed site the live
    fetch quietly refreshes this with the latest from GitHub. */
 const SNAPSHOT = [
-  { name:"FFdraft",        description:"Fantasy Football Draft Warroom",                               language:"HTML" },
-  { name:"csvCompare",     description:"Compare Two CSV Files",                                         language:"HTML" },
-  { name:"retire",         description:"401k Calculator",                                               language:"HTML" },
-  { name:"circuit",        description:null,                                                            language:"HTML" },
-  { name:"perfect_season", description:"Try to go 162-0 by drafting 80s, 90s, and 2000s MLB players",   language:"HTML" },
-  { name:"buzzard",        description:"escrow tracking",                                               language:"TypeScript" },
+  { name:"FFdraft",        description:"Fantasy Football Draft Warroom",                               language:"HTML",       asset:"https://thegreyedbook.github.io/FFdraft/" },
+  { name:"csvCompare",     description:"Compare Two CSV Files",                                         language:"HTML",       asset:"https://thegreyedbook.github.io/csvCompare/" },
+  { name:"retire",         description:"401k Calculator",                                               language:"HTML",       asset:"https://thegreyedbook.github.io/retire/" },
+  { name:"circuit",        description:null,                                                            language:"HTML",       asset:"https://thegreyedbook.github.io/circuit/" },
+  { name:"perfect_season", description:"Try to go 162-0 by drafting 80s, 90s, and 2000s MLB players",   language:"HTML",       asset:"https://thegreyedbook.github.io/perfect_season/" },
+  { name:"buzzard",        description:"escrow tracking",                                               language:"TypeScript", asset:null },
 ];
 
 /* ============================================================
@@ -241,7 +250,7 @@ $("avatarFallback").textContent = (PROFILE.name[0] || USERNAME[0] || "?").toUppe
 $("footNote").innerHTML = "// github.com/" + escapeHtml(USERNAME) + " — self-updating";
 
 // 1) Paint the snapshot immediately so the page is never empty.
-render(SNAPSHOT.map(r => ({ ...r, url:"https://github.com/" + USERNAME + "/" + r.name })));
+render(SNAPSHOT.map(r => ({ ...r, url:"https://github.com/" + USERNAME + "/" + r.name, asset:r.asset || null })));
 
 // 2) Try to refresh from the live GitHub API (works on the deployed site).
 refresh();
@@ -266,7 +275,12 @@ async function refresh(){
     if(OPTIONS.limit) repos = repos.slice(0, OPTIONS.limit);
 
     if(repos.length){
-      render(repos.map(r => ({ name:r.name, description:r.description, language:r.language, url:r.html_url })));
+      render(repos.map(r => ({
+        name:r.name, description:r.description, language:r.language, url:r.html_url,
+        asset: (r.homepage && r.homepage.trim())
+                 ? r.homepage.trim()
+                 : (r.has_pages ? ("https://" + USERNAME + ".github.io/" + r.name + "/") : null)
+      })));
     }
   }catch(err){
     /* Offline or rate-limited: the snapshot is already on screen. */
@@ -282,23 +296,25 @@ function render(list){
 
   for(const r of list){
     const color = LANG_COLORS[r.language] || "#8a93a6";
-    const a = document.createElement("a");
-    a.className = "repo";
-    a.href = r.url; a.target = "_blank"; a.rel = "noopener";
-    a.innerHTML =
-      '<span class="repo-name">' + escapeHtml(r.name) + '</span>' +
+    const row = document.createElement("div");
+    row.className = "repo";
+    row.innerHTML =
+      '<a class="repo-name" href="' + escapeAttr(r.url) + '" target="_blank" rel="noopener">' + escapeHtml(r.name) + '</a>' +
       (r.language ? '<span class="repo-lang"><span class="dot" style="background:'+color+'"></span>'+escapeHtml(r.language)+'</span>' : '') +
       (r.description
         ? '<span class="repo-desc">' + escapeHtml(r.description) + '</span>'
         : '<span class="repo-desc empty">// add a description on github</span>') +
-      '<span class="open">open →</span>';
-    c.appendChild(a);
+      (r.asset
+        ? '<a class="asset" href="' + escapeAttr(r.asset) + '" target="_blank" rel="noopener" aria-label="Open the live ' + escapeAttr(r.name) + '">live <span class="arr">↗</span></a>'
+        : '');
+    c.appendChild(row);
   }
 }
 
 function escapeHtml(s){
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
+const escapeAttr = escapeHtml;   // same escaping is safe for attribute values
 </script>
 </body>
 </html>
