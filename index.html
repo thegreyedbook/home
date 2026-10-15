@@ -1,320 +1,626 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>thegreyedbook · repositories</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;450;500&display=swap" rel="stylesheet">
+<title>Bear Weather</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Barlow:wght@400;500;600&display=swap">
 <style>
-/* ============================================================
-   THEME
-   ============================================================ */
+/* Layout: two views. Overview = three location cards for at-a-glance comparison. Tap a card = full-screen location view (switcher bar, wind hero, light times, forecast). Dark-first: used before dawn. */
 :root{
-  --bg:        #0f1117;
-  --panel:     #161922;
-  --panel-2:   #1b1f2a;
-  --line:      #262b38;
-  --text:      #e7eaf1;
-  --muted:     #8a93a6;
-  --faint:     #545c6d;
-  --accent:    #3fb9c9;
-  --accent-dim:#2a7c88;
-  --err:       #e0a458;
-  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
-  --sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
-  box-sizing:border-box;
-  padding-top: env(safe-area-inset-top, 0px);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  --bg:#0f1210; --surface:#171b18; --surface-2:#1f2420; --line:#2c332d;
+  --fg:#eef0ea; --muted:#9aa396; --faint:#6b7468;
+  --blaze:#ff7a1a;            /* hunter orange: accent */
+  --rain:#4fa8ff;
+  --sun:#ffc93c; --moon:#d9dccf; --cloud:#c8cec4; --cloud-dk:#8b948a; --storm:#5f6876;
+  --calm:#6fcf8a; --breezy:#f2c14e; --windy:#ff5c4d;
+  --display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:dark;
 }
-*,*::before,*::after{box-sizing:border-box}
-html,body{margin:0}
-body{
-  background:
-    radial-gradient(900px 500px at 78% -8%, rgba(63,185,201,.07), transparent 60%),
-    var(--bg);
-  color:var(--text);
-  font-family:var(--sans);font-weight:400;line-height:1.5;
-  -webkit-font-smoothing:antialiased;min-height:100dvh;
-  display:flex;justify-content:center;
-  padding:clamp(16px,4vw,52px) clamp(14px,4vw,24px);
-}
-.wrap{width:100%;max-width:760px}
+*{box-sizing:border-box}
+html,body{background:var(--bg);color:var(--fg)}
+body{font-family:var(--body);font-size:15px;line-height:1.4;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 40px}
+.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+.num{font-family:var(--display);font-variant-numeric:tabular-nums}
 
-/* ---- console bar ---- */
-.console{
-  border:1px solid var(--line);border-radius:12px 12px 0 0;
-  background:var(--panel-2);padding:11px 14px;
-  display:flex;align-items:center;gap:10px;
-  font-family:var(--mono);font-size:13px;color:var(--muted);
-}
-.dots{display:flex;gap:6px;flex:0 0 auto}
-.dots span{width:11px;height:11px;border-radius:50%;background:var(--line)}
-.dots span:nth-child(1){background:#e05561}
-.dots span:nth-child(2){background:#e0a458}
-.dots span:nth-child(3){background:#3fb28b}
-.prompt{
-  white-space:nowrap;overflow:hidden;border-right:2px solid var(--accent);
-  animation:type 1.05s steps(34,end) 1 both, blink .9s step-end infinite;
-}
-.prompt .user{color:var(--accent)}
-.prompt .cmd{color:var(--text)}
-@keyframes type{from{width:0}to{width:100%}}
-@keyframes blink{50%{border-color:transparent}}
+/* header */
+header{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
+h1{font-family:var(--display);font-weight:800;font-size:34px;letter-spacing:.02em;text-transform:uppercase;margin:0;line-height:1}
+h1 span{color:var(--blaze)}
+.meta{color:var(--muted);font-size:13px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.pill{border:1px solid var(--line);border-radius:999px;padding:3px 10px;font-size:12px;color:var(--muted)}
+.pill.sample{border-color:var(--blaze);color:var(--blaze)}
+.src{font-size:12px;font-weight:600;letter-spacing:.02em}
+.src.ok{color:var(--calm)}
+.src.old{color:var(--breezy)}
+.pill.live{border-color:var(--calm);color:var(--calm)}
+.pill.stale{border-color:var(--breezy);color:var(--breezy)}
+button.refresh:disabled{opacity:.5;cursor:default}
+button.refresh{background:var(--surface-2);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:6px 12px;font:600 13px var(--body);cursor:pointer}
+button:focus-visible,.card:focus-visible{outline:2px solid var(--blaze);outline-offset:2px}
 
-/* ---- panel ---- */
-.panel{
-  border:1px solid var(--line);border-top:none;border-radius:0 0 12px 12px;
-  background:var(--panel);padding:clamp(22px,5vw,38px);
-}
+/* location cards */
+.cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px 18px;cursor:pointer;text-align:left;color:inherit;font:inherit;
+  display:grid;grid-template-columns:1fr auto;grid-template-rows:auto auto auto;gap:6px 12px;transition:border-color .15s,background .15s}
+.card:hover{border-color:#47513f}
+.card[aria-pressed="true"]{border-color:var(--blaze);background:var(--surface-2)}
+.card .name{grid-column:1/-1;display:flex;justify-content:space-between;align-items:baseline}
+.card .name b{font-family:var(--display);font-weight:700;font-size:22px;text-transform:uppercase;letter-spacing:.04em}
+.card .name small{color:var(--faint);font-size:12px}
+.card .temp{font-size:68px;font-weight:700;line-height:.95}
+.card .temp sup{font-size:26px;color:var(--muted);vertical-align:top;position:relative;top:8px}
+.card .feels{color:var(--muted);font-size:13px}
+.card .dial{grid-row:2/4;grid-column:2;align-self:center}
+.stats{grid-column:1/-1;display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:8px;margin-top:6px;border-top:1px solid var(--line);padding-top:10px}
+.stat .k{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--faint)}
+.stat .v{font-family:var(--display);font-weight:700;font-size:22px;font-variant-numeric:tabular-nums;line-height:1.1}
+.stat .v small{font-size:14px;color:var(--muted);font-weight:600}
 
-/* ---- identity ---- */
-.id{display:flex;gap:18px;align-items:center;margin-bottom:32px}
-.avatar-wrap{width:72px;height:72px;flex:0 0 auto;position:relative}
-.avatar{
-  width:72px;height:72px;border-radius:14px;
-  border:1px solid var(--line);object-fit:cover;background:var(--panel-2);display:block;
-}
-.avatar-fallback{
-  position:absolute;inset:0;display:none;align-items:center;justify-content:center;
-  border-radius:14px;border:1px solid var(--line);background:var(--panel-2);
-  font-family:var(--mono);font-size:28px;font-weight:600;color:var(--accent);
-}
-.id h1{
-  margin:0;font-family:var(--mono);font-weight:600;
-  font-size:clamp(20px,4vw,26px);letter-spacing:-.01em;line-height:1.1;
-}
-.handle{
-  font-family:var(--mono);font-size:14px;color:var(--accent);
-  text-decoration:none;display:inline-block;margin-top:2px;
-}
-.handle:hover{text-decoration:underline}
-.tagline{color:var(--muted);font-size:14.5px;margin-top:7px;max-width:52ch}
+.hint{color:var(--faint);font-size:13px;text-align:center}
+.templine{display:flex;align-items:center;gap:10px}
+.now .templine{margin-top:14px;gap:14px}
+.now .templine .bigtemp{margin-top:0}
+.skylbl{color:var(--fg);font-weight:600}
+.sky{display:block;margin:0 auto;flex:none}
+.switch .ab{display:none}
+.switch button .sky{margin:0}
 
-/* ---- listing header ---- */
-.listing-head{
-  font-family:var(--mono);font-size:12.5px;color:var(--faint);
-  padding-bottom:10px;border-bottom:1px solid var(--line);
-  display:flex;justify-content:space-between;align-items:center;
-}
-.listing-head .refreshing{color:var(--accent-dim);opacity:0;transition:opacity .2s}
-.listing-head .refreshing.on{opacity:1}
+/* location view */
+.detail{display:flex;flex-direction:column;gap:18px}
+.detail.enter-r{animation:inR .22s ease-out}.detail.enter-l{animation:inL .22s ease-out}.detail.enter{animation:inUp .22s ease-out}
+@keyframes inR{from{opacity:.3;transform:translateX(28px)}to{opacity:1;transform:none}}
+@keyframes inL{from{opacity:.3;transform:translateX(-28px)}to{opacity:1;transform:none}}
+@keyframes inUp{from{opacity:.3;transform:translateY(16px)}to{opacity:1;transform:none}}
+.locbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:8px;border-bottom:1px solid var(--line)}
+.back{background:none;border:0;color:var(--muted);font:600 14px var(--body);cursor:pointer;padding:6px 4px;display:flex;align-items:center;gap:6px}
+.back:hover{color:var(--fg)}
+.switch{display:flex;gap:6px;flex-wrap:wrap}
+.switch button{background:var(--surface);border:1px solid var(--line);color:var(--muted);border-radius:10px;padding:6px 12px;cursor:pointer;display:flex;gap:8px;align-items:center;font:700 14px var(--display);text-transform:uppercase;letter-spacing:.05em}
+.switch button b{font-size:16px;color:var(--fg);font-variant-numeric:tabular-nums}
+.switch button[aria-current="true"]{border-color:var(--blaze);color:var(--blaze);background:var(--surface-2)}
+.switch .dot{width:8px;height:8px;border-radius:50%}
 
-/* ---- repo rows ---- */
-.repo{
-  position:relative;
-  display:grid;grid-template-columns:1fr auto;gap:2px 14px;align-items:baseline;
-  padding:16px 12px 16px 14px;margin:0 -12px 0 -14px;
-  border-bottom:1px solid var(--line);border-left:2px solid transparent;
-  transition:background .15s ease, border-color .15s ease;
-}
-.repo:hover,.repo:focus-within{background:var(--panel-2);border-left-color:var(--accent)}
-/* the repo name is the primary link; ::after stretches it over the whole row */
-.repo-name{
-  grid-column:1;grid-row:1;
-  font-family:var(--mono);font-size:16px;font-weight:500;color:var(--text);text-decoration:none;
-}
-.repo-name::after{content:"";position:absolute;inset:0;z-index:1}
-.repo:hover .repo-name{color:var(--accent)}
-.repo-name:focus-visible{outline:2px solid var(--accent-dim);outline-offset:3px;border-radius:3px}
-.repo-lang{
-  grid-column:2;grid-row:1;font-family:var(--mono);font-size:12px;color:var(--muted);
-  display:inline-flex;align-items:center;gap:6px;white-space:nowrap;
-}
-.dot{width:9px;height:9px;border-radius:50%;background:var(--muted);flex:0 0 auto}
-.repo-desc{grid-column:1;grid-row:2;color:var(--muted);font-size:14px;margin-top:4px;max-width:56ch}
-.repo-desc.empty{font-family:var(--mono);color:var(--faint);font-size:13px}
-/* small secondary link straight to the deployed asset */
-.asset{
-  grid-column:2;grid-row:2;justify-self:end;align-self:center;
-  position:relative;z-index:2;white-space:nowrap;
-  font-family:var(--mono);font-size:12px;color:var(--accent);text-decoration:none;
-  border:1px solid var(--accent-dim);border-radius:7px;padding:4px 10px;
-  transition:background .15s ease, border-color .15s ease;
-}
-.asset:hover{background:rgba(63,185,201,.13);border-color:var(--accent)}
-.asset:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.asset .arr{opacity:.7}
+.hero{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:22px;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:24px;align-items:center}
+.now h2{margin:0;font-family:var(--display);font-weight:800;font-size:30px;text-transform:uppercase;letter-spacing:.04em;line-height:1}
+.now .date{color:var(--muted);font-size:13px;margin-top:4px}
+.now .bigtemp{font-family:var(--display);font-weight:700;font-size:96px;line-height:.9;margin-top:14px;font-variant-numeric:tabular-nums}
+.now .bigtemp sup{font-size:32px;color:var(--muted);vertical-align:top;position:relative;top:12px}
+.now .feels{color:var(--muted);font-size:14px}
+.now .stats{grid-template-columns:1fr 1fr;margin-top:14px}
+.windtext{display:flex;flex-direction:column;gap:6px;min-width:0}
+.windtext .k{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.windtext .from{font-family:var(--display);font-weight:800;font-size:56px;line-height:1}
+.windtext .desc{font-size:18px;font-weight:600}
+.windtext .scent{color:var(--blaze);font-size:16px;font-weight:700;border-top:1px solid var(--line);padding-top:10px;margin-top:4px}
+.windtext .gust{color:var(--muted);font-size:14px}
+.trend{display:flex;gap:4px;align-items:flex-end;margin-top:8px}
+.trend div{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;color:var(--faint)}
+.trend span.n{font-family:var(--display);font-weight:700;font-size:14px}
 
-/* ---- footer ---- */
-.foot{margin-top:26px;font-family:var(--mono);font-size:12.5px;color:var(--faint)}
-.foot a{color:var(--muted);text-decoration:none}
-.foot a:hover{color:var(--accent)}
+.light{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.lt{background:var(--surface-2);border-radius:12px;padding:14px 12px;display:flex;flex-direction:column;gap:2px;border:1px solid var(--line)}
+.lt .k{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.lt .v{font-family:var(--display);font-weight:700;font-size:30px;font-variant-numeric:tabular-nums;line-height:1.05}
+.lt .v small{font-size:15px;color:var(--muted)}
+.lt.key{border-color:var(--blaze)}
+.lt.key .k{color:var(--blaze)}
+.lt .note{font-size:12px;color:var(--faint)}
+.lightbar{grid-column:1/-1;height:10px;border-radius:999px;background:linear-gradient(90deg,#1d2433 0%,#3b4a6b 12%,#f2c14e 20%,#f7e3a1 50%,#f2c14e 80%,#3b4a6b 88%,#1d2433 100%);opacity:.7}
 
-@media (max-width:460px){
-  .repo{grid-template-columns:1fr}
-  .repo-lang{grid-column:1;grid-row:auto;margin-top:2px}
-  .repo-desc{grid-column:1;grid-row:auto;max-width:none}
-  .asset{grid-column:1;grid-row:auto;justify-self:start;margin-top:10px}
+/* tabs */
+.tabs{display:inline-flex;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:3px;gap:3px}
+.tabs button{background:none;border:0;color:var(--muted);font:700 15px var(--display);text-transform:uppercase;letter-spacing:.06em;padding:8px 18px;border-radius:8px;cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--blaze);color:#1a0d02}
+.fc-head{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
+.legend{display:flex;gap:12px;font-size:12px;color:var(--muted);flex-wrap:wrap}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+
+/* forecast table */
+.scroll{overflow-x:auto;border:1px solid var(--line);border-radius:12px}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+th,td{padding:10px 8px;text-align:center;border-bottom:1px solid var(--line);white-space:nowrap;min-width:64px}
+tr:last-child td{border-bottom:0}
+th[scope=row]{position:sticky;left:0;background:var(--surface);text-align:left;font:600 11px var(--body);text-transform:uppercase;letter-spacing:.08em;color:var(--muted);min-width:96px;z-index:1}
+thead th{font-family:var(--display);font-weight:700;font-size:17px;text-transform:uppercase;letter-spacing:.04em;background:var(--surface-2)}
+thead th small{display:block;font:500 11px var(--body);color:var(--faint);text-transform:none;letter-spacing:0}
+thead th.now{color:var(--blaze)}
+.t-hi{font-family:var(--display);font-weight:700;font-size:22px}
+.t-lo{font-family:var(--display);font-weight:600;font-size:18px;color:var(--muted)}
+.pp{display:flex;flex-direction:column;align-items:center;gap:4px}
+.pp b{font-family:var(--display);font-size:17px;color:var(--rain)}
+.pp b.zero{color:var(--faint)}
+.pbar{width:36px;height:5px;background:var(--surface-2);border-radius:3px;overflow:hidden}
+.pbar span{display:block;height:100%;background:var(--rain)}
+.wcell{display:flex;flex-direction:column;align-items:center;gap:2px}
+.wcell .spd{font-family:var(--display);font-weight:700;font-size:18px}
+.wcell .g{font-size:12px;color:var(--muted)}
+.wcell .d{font-size:11px;color:var(--faint);letter-spacing:.04em}
+.ltime{font-family:var(--display);font-weight:600;font-size:16px}
+
+footer{color:var(--faint);font-size:12px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+
+@media (max-width:980px){
+  .hero{grid-template-columns:1fr auto;}
+  .hero .windtext{grid-column:1/-1}
 }
-@media (prefers-reduced-motion:reduce){
-  .prompt{animation:none;border-right-color:transparent;width:100%}
-  .repo,.asset,.refreshing{transition:none}
+@media (max-width:900px){
+  .cards{grid-template-columns:1fr}
 }
+@media (max-width:600px){
+  .hero{grid-template-columns:1fr;justify-items:center;text-align:center;padding:18px}
+  .now .stats{text-align:left}
+  .windtext{align-items:center}
+  .light{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .card .temp{font-size:56px}
+  .now .bigtemp{font-size:76px}
+  .windtext .from{font-size:44px}
+  .switch button{padding:6px 9px}
+  .switch button .nm{display:none}
+  .switch button .ab{display:inline}
+  .now .templine{justify-content:center}
+  .tabs button{padding:8px 11px;font-size:14px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
-</head>
-<body>
-<main class="wrap">
 
-  <div class="console">
-    <div class="dots"><span></span><span></span><span></span></div>
-    <div class="prompt"><span class="user" id="promptUser"></span><span class="cmd"> ls ./repositories</span></div>
+<div class="wrap">
+  <header>
+    <h1>Bear <span>Weather</span></h1>
+    <div class="meta">
+      <span class="pill" id="status">Loading…</span>
+      <span id="updated"></span>
+      <button class="refresh" id="refresh" type="button">Refresh</button>
+    </div>
+  </header>
+
+  <div id="overview" style="display:flex;flex-direction:column;gap:12px">
+    <section class="cards" id="cards" aria-label="Locations"></section>
+    <p class="hint">Tap a location for the wind dial, light times, and forecast.</p>
   </div>
 
-  <section class="panel">
-    <div class="id">
-      <div class="avatar-wrap">
-        <img class="avatar" id="avatar" alt="" onerror="this.style.display='none';document.getElementById('avatarFallback').style.display='flex'">
-        <div class="avatar-fallback" id="avatarFallback" aria-hidden="true"></div>
-      </div>
-      <div>
-        <h1 id="name"></h1>
-        <a class="handle" id="handle" href="#" target="_blank" rel="noopener"></a>
-        <div class="tagline" id="tagline"></div>
-      </div>
-    </div>
+  <section class="detail" id="detail" hidden></section>
 
-    <div class="listing-head">
-      <span id="count">repositories</span>
-      <span class="refreshing" id="refreshing">syncing…</span>
-    </div>
-
-    <nav id="repos" aria-label="Repositories"></nav>
-
-    <div class="foot"><span id="footNote"></span></div>
-  </section>
-
-</main>
+  <footer>
+    <span>Wind arrows point downwind, the way your scent travels. "Now" readings come from airport sensors (NWS); forecasts come from the Open-Meteo model.</span>
+    <span><a href="https://open-meteo.com/" target="_blank" rel="noopener" style="color:var(--muted)">Weather data by Open-Meteo.com</a> · first/last light = civil twilight</span>
+  </footer>
+</div>
 
 <script>
-/* ============================================================
-   CONFIG — the only part you edit.
-   ============================================================ */
-
-const USERNAME = "thegreyedbook";
-
-const PROFILE = {
-  name:    "thegreyedbook",
-  tagline: "SQL Server · data engineering & BI. Reports, warehouse views, and side projects."
-};
-
-const OPTIONS = {
-  sort:         "pushed",   // "pushed" (recent activity) | "updated" | "created" | "full_name" (A to Z)
-  includeForks: false,
-  limit:        null        // e.g. 6 to cap; null = all public repos
-};
-
-// Repos to leave OUT of the list (this landing page's own repo, etc.).
-const EXCLUDE = ["home"];
-
-// If non-empty, ONLY these show, in this order. Leave [] to auto-list.
-const PINNED = [];
-
-/* Baked-in snapshot: shown instantly, and whenever the live GitHub call
-   can't run (e.g. a sandboxed preview). On the deployed site the live
-   fetch quietly refreshes this with the latest from GitHub. */
-const SNAPSHOT = [
-  { name:"FFdraft",        description:"Fantasy Football Draft Warroom",                               language:"HTML",       asset:"https://thegreyedbook.github.io/FFdraft/" },
-  { name:"csvCompare",     description:"Compare Two CSV Files",                                         language:"HTML",       asset:"https://thegreyedbook.github.io/csvCompare/" },
-  { name:"retire",         description:"401k Calculator",                                               language:"HTML",       asset:"https://thegreyedbook.github.io/retire/" },
-  { name:"circuit",        description:null,                                                            language:"HTML",       asset:"https://thegreyedbook.github.io/circuit/" },
-  { name:"perfect_season", description:"Try to go 162-0 by drafting 80s, 90s, and 2000s MLB players",   language:"HTML",       asset:"https://thegreyedbook.github.io/perfect_season/" },
-  { name:"buzzard",        description:"escrow tracking",                                               language:"TypeScript", asset:null },
+/* ---------- config: add a region here ---------- */
+const LOCATIONS = [
+  // lat/lon = forecast point (model). station = NWS sensor used for "Now" readings.
+  {id:"hou", name:"Houston",     abbr:"HOU",  lat:29.6454,  lon:-95.2789,   station:"KHOU", stationName:"Hobby Airport",
+   base:{t:79,h:78,dir:150,spd:9,pp:30},  sun:["7:22","6:51"]},
+  {id:"sat", name:"San Antonio", abbr:"SA",   lat:29.3842,  lon:-98.5811,   station:"KSKF", stationName:"Kelly Field",
+   base:{t:84,h:55,dir:175,spd:12,pp:10}, sun:["7:35","7:04"]},
+  {id:"rks", name:"Rocksprings", abbr:"ROCK", lat:30.10205, lon:-100.16536, station:"KECU", stationName:"Edwards Co. Airport",
+   base:{t:81,h:34,dir:220,spd:16,pp:0},  sun:["7:42","7:12"]},
 ];
+const OBS_STALE_MIN=90;   // flag a sensor reading older than this
 
-/* ============================================================
-   No need to edit below.
-   ============================================================ */
+/* ---------- sensor readings: NWS latest observation per station ---------- */
+const obsUrl=id=>`https://api.weather.gov/stations/${id}/observations/latest`;
+function q(o,kind){
+  if(!o||o.value==null) return null;
+  const u=o.unitCode||"", v=o.value;
+  if(kind==="F") return /degF/.test(u)?v:v*9/5+32;
+  if(kind==="mph") return /km_h/.test(u)?v/1.609344:/m_s/.test(u)?v*2.236936:/kn|kt/.test(u)?v*1.150779:v;
+  if(kind==="in") return /:mm$/.test(u)?v/25.4:/:m$/.test(u)?v*39.3701:v;
+  return v;
+}
+function parseObs(j){
+  const p=j&&j.properties; if(!p||!p.timestamp) return null;
+  const temp=q(p.temperature,"F"); if(temp==null) return null;
+  const spd=q(p.windSpeed,"mph");
+  return {time:p.timestamp, text:p.textDescription||"",
+    temp, feels:q(p.heatIndex,"F")??q(p.windChill,"F")??temp,
+    hum:q(p.relativeHumidity), spd:spd??0,
+    dir:(spd===0||spd==null)?null:q(p.windDirection),
+    gust:q(p.windGust,"mph"), precip:q(p.precipitationLastHour,"in")};
+}
+function skyFromText(t){
+  t=(t||"").toLowerCase(); if(!t) return null;
+  if(/thunder/.test(t)) return "storm";
+  if(/light (rain|drizzle|showers)|drizzle/.test(t)) return "light";
+  if(/rain|showers/.test(t)) return "rain";
+  if(/overcast|mostly cloudy|^cloudy|fog|mist|haze|smoke/.test(t)) return "cloudy";
+  if(/partly|few|scattered/.test(t)) return "partly";
+  if(/clear|sunny|fair/.test(t)) return "clear";
+  return null;
+}
 
-const LANG_COLORS = {
-  "TSQL":"#e0a458","PLpgSQL":"#e0a458","SQL":"#e0a458","C#":"#9d6dd6",
-  "Python":"#4b8bbe","JavaScript":"#e0c341","TypeScript":"#3178c6","HTML":"#e05561",
-  "CSS":"#563d7c","R":"#4b8bbe","Shell":"#3fb28b","PowerShell":"#4a8fd6","Vue":"#41b883","Jupyter Notebook":"#e0a458"
-};
+const TZ="America/Chicago";
+const REFRESH_MIN=15;     // auto-refresh interval while the page is open
+const MANUAL_GAP_S=60;    // minimum seconds between manual refreshes
 
-const $ = (id) => document.getElementById(id);
+/* Sky conditions, mapped from Open-Meteo weather_code (WMO):
+   0-1 clear · 2 partly · 3,45,48 cloudy · drizzle/light rain/light showers · rain/heavy showers · 95-99 storm */
+const SKY={clear:"Clear",partly:"Partly cloudy",cloudy:"Cloudy",light:"Light rain",rain:"Rain",storm:"Thunderstorms"};
+function skyFromCode(c){
+  if(c==null) return "cloudy";
+  if(c<=1) return "clear";
+  if(c===2) return "partly";
+  if(c===3||c===45||c===48) return "cloudy";
+  if([51,53,55,56,57,61,66,80,71,73,77,85].includes(c)) return "light";
+  if([63,65,67,81,82,75,86].includes(c)) return "rain";
+  if(c>=95) return "storm";
+  return "cloudy";
+}
 
-$("promptUser").textContent = USERNAME + "@github:~$";
-$("name").textContent = PROFILE.name;
-$("tagline").textContent = PROFILE.tagline;
+/* ---------- civil twilight (sun 6° below horizon), NOAA/SunCalc method ---------- */
+const RAD=Math.PI/180, DAYMS=864e5, J1970=2440588, J2000=2451545, OBL=RAD*23.4397;
+function twilight(dateStr,lat,lon,deg=-6){
+  const date=new Date(dateStr+"T18:00:00Z");                  // ~local noon in Texas
+  const d=date/DAYMS-0.5+J1970-J2000, lw=-lon*RAD, phi=lat*RAD;
+  const n=Math.round(d-0.0009-lw/(2*Math.PI));
+  const ds=0.0009+lw/(2*Math.PI)+n;
+  const M=RAD*(357.5291+0.98560028*ds);
+  const C=RAD*(1.9148*Math.sin(M)+0.02*Math.sin(2*M)+0.0003*Math.sin(3*M));
+  const L=M+C+RAD*102.9372+Math.PI;
+  const dec=Math.asin(Math.sin(OBL)*Math.sin(L));
+  const Jnoon=J2000+ds+0.0053*Math.sin(M)-0.0069*Math.sin(2*L);
+  const w=Math.acos((Math.sin(deg*RAD)-Math.sin(phi)*Math.sin(dec))/(Math.cos(phi)*Math.cos(dec)));
+  const Jset=J2000+0.0009+(w+lw)/(2*Math.PI)+n+0.0053*Math.sin(M)-0.0069*Math.sin(2*L);
+  const Jrise=Jnoon-(Jset-Jnoon);
+  const toDate=j=>new Date((j+0.5-J1970)*DAYMS);
+  return {dawn:toDate(Jrise),dusk:toDate(Jset)};
+}
+const FMT_HM=new Intl.DateTimeFormat("en-US",{timeZone:TZ,hour:"numeric",minute:"2-digit",hour12:true});
+const hm=dt=>FMT_HM.format(dt).replace(/\s?[AP]M/,"");
+const hmLocal=s=>{const [h,m]=s.slice(11,16).split(":").map(Number);return `${h%12||12}:${String(m).padStart(2,"0")}`};
+const clock=s=>{const h=+s.slice(11,13);return `${hmLocal(s)} ${h<12?"AM":"PM"}`};
 
-const handle = $("handle");
-handle.textContent = "github.com/" + USERNAME;
-handle.href = "https://github.com/" + USERNAME;
+/* ---------- live data: Open-Meteo, all locations in one request ---------- */
+const API="https://api.open-meteo.com/v1/forecast";
+function apiUrl(){
+  const p=new URLSearchParams({
+    latitude:LOCATIONS.map(l=>l.lat).join(","),
+    longitude:LOCATIONS.map(l=>l.lon).join(","),
+    current:"temperature_2m,apparent_temperature,relative_humidity_2m,precipitation,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,is_day",
+    hourly:"temperature_2m,precipitation_probability,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,is_day",
+    daily:"weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max,wind_direction_10m_dominant,sunrise,sunset",
+    temperature_unit:"fahrenheit",wind_speed_unit:"mph",precipitation_unit:"inch",
+    timezone:TZ,forecast_days:"10",
+  });
+  return `${API}?${p}`;
+}
+const R=v=>v==null?0:Math.round(v);
+function fromApi(loc,r,obs){
+  const cu=r.current, h=r.hourly, d=r.daily;
+  const curHour=cu.time.slice(0,13);
+  let i0=h.time.findIndex(t=>t.slice(0,13)>=curHour); if(i0<0)i0=0;
+  const hourly=[];
+  for(let k=i0;k<Math.min(i0+24,h.time.length);k++){
+    const hr=+h.time[k].slice(11,13);
+    hourly.push({label:k===i0?"Now":(hr%12||12)+(hr<12?"a":"p"),temp:R(h.temperature_2m[k]),pp:R(h.precipitation_probability[k]),
+      dir:R(h.wind_direction_10m[k]),spd:R(h.wind_speed_10m[k]),gust:R(h.wind_gusts_10m[k]),sky:skyFromCode(h.weather_code[k]),night:h.is_day[k]===0});
+  }
+  const daily=d.time.map((ds,k)=>{
+    const tw=twilight(ds,loc.lat,loc.lon), dt=new Date(ds+"T12:00:00");
+    return {label:k===0?"Today":DAYS[dt.getDay()],date:`${dt.getMonth()+1}/${dt.getDate()}`,
+      hi:R(d.temperature_2m_max[k]),lo:R(d.temperature_2m_min[k]),pp:R(d.precipitation_probability_max[k]),sky:skyFromCode(d.weather_code[k]),
+      dir:R(d.wind_direction_10m_dominant[k]),spd:R(d.wind_speed_10m_max[k]),gust:R(d.wind_gusts_10m_max[k]),
+      first:hm(tw.dawn),rise:hmLocal(d.sunrise[k]),set:hmLocal(d.sunset[k]),last:hm(tw.dusk)};
+  });
+  const asOfDate=new Date(cu.time.slice(0,10)+"T12:00:00");
+  return {...loc,
+    ...currentFrom(loc,cu,obs,asOfDate),
+    hourly,daily};
+}
+function currentFrom(loc,cu,obs,asOfDate){
+  const day=asOfDate.toLocaleDateString("en-US",{weekday:"long",month:"short",day:"numeric"});
+  const night=cu.is_day===0, modelSky=skyFromCode(cu.weather_code);
+  if(obs){
+    const t=new Date(obs.time), age=Math.round((Date.now()-t)/6e4);
+    const tc=FMT_HM.format(t).replace(/ |\s/," ");
+    return {asOf:`${day} · ${loc.stationName} (${loc.station}) at ${tc}`,
+      current:{src:"sensor",obsClock:tc,age,stale:age>OBS_STALE_MIN,night,
+        sky:skyFromText(obs.text)||modelSky,skyText:obs.text,
+        temp:R(obs.temp),feels:R(obs.feels),hum:obs.hum==null?null:R(obs.hum),precip:obs.precip,
+        dir:obs.dir==null?null:R(obs.dir),spd:R(obs.spd),gust:obs.gust==null?null:R(obs.gust)}};
+  }
+  return {asOf:`${day} · sensor unavailable, model estimate at ${clock(cu.time)}`,
+    current:{src:"model",night,sky:modelSky,temp:R(cu.temperature_2m),feels:R(cu.apparent_temperature),hum:R(cu.relative_humidity_2m),
+      precip:cu.precipitation??0,dir:R(cu.wind_direction_10m),spd:R(cu.wind_speed_10m),gust:R(cu.wind_gusts_10m)}};
+}
+function skyFromPP(p,r){return p>=60?"storm":p>=45?"rain":p>=28?"light":p>=15?"cloudy":(p>=6||r>.6)?"partly":"clear"}
 
-$("avatar").src = "https://github.com/" + USERNAME + ".png?size=200";
-$("avatar").alt = PROFILE.name;
-$("avatarFallback").textContent = (PROFILE.name[0] || USERNAME[0] || "?").toUpperCase();
+/* ---------- mock data (replaced by Open-Meteo later) ---------- */
+function rng(seed){return()=>{seed=(seed*9301+49297)%233280;return seed/233280}}
+const DAYS=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+function addMin(hm,m){let [h,mm]=hm.split(":").map(Number);let t=h*60+mm+m;return `${Math.floor(t/60)}:${String(t%60).padStart(2,"0")}`}
+function mock(loc,i){
+  const r=rng(i*97+13), b=loc.base, now=new Date(2026,9,15,10);
+  const hourly=[];
+  for(let k=0;k<24;k++){
+    const hr=(10+k)%24, diurnal=Math.sin((hr-9)/24*2*Math.PI);
+    hourly.push({
+      label:k===0?"Now":(hr%12||12)+(hr<12?"a":"p"),
+      temp:Math.round(b.t-6+diurnal*11+r()*2),
+      pp:Math.max(0,Math.min(100,Math.round(b.pp+(k>6&&k<14?25:0)*(b.pp>0?1:0)+r()*12-6))),
+      dir:Math.round(b.dir+Math.sin(k/5)*35+r()*15)%360,
+      spd:Math.max(2,Math.round(b.spd+diurnal*5+r()*3-1.5)),
+    });
+    hourly[k].gust=hourly[k].spd+Math.round(4+r()*7);
+    hourly[k].sky=skyFromPP(hourly[k].pp,r());
+    hourly[k].night=hr>=19||hr<7;
+  }
+  const daily=[];
+  for(let d=0;d<10;d++){
+    const dt=new Date(now);dt.setDate(dt.getDate()+d);
+    const front=d===3, system=d===7; // a cold front mid-week, a rain system next week
+    const spd=Math.round(b.spd+(front?8:system?4:0)+r()*4-2);
+    const pp=Math.max(0,Math.min(100,Math.round((front?62:system?40:b.pp*.6)+r()*20-8)));
+    const cool=d>=3&&d<7?12:d>=7?7:0;
+    daily.push({
+      label:d===0?"Today":DAYS[dt.getDay()], date:`${dt.getMonth()+1}/${dt.getDate()}`,
+      hi:Math.round(b.t+5-cool+r()*4), lo:Math.round(b.t-14-cool+r()*4),
+      pp, sky:skyFromPP(pp,r()),
+      dir:front?345:Math.round(b.dir+r()*40-20)%360, spd, gust:spd+Math.round(6+r()*8),
+      first:addMin(loc.sun[0],d-25), rise:addMin(loc.sun[0],d), set:addMin(loc.sun[1],-d), last:addMin(loc.sun[1],-d+25),
+    });
+  }
+  const c=hourly[0];
+  return {asOf:"Sample data · not live",current:{src:"sample",sky:c.sky,temp:c.temp,feels:c.temp+(b.h>70?4:-1),hum:b.h,precip:b.pp>20?0.02:0,dir:c.dir,spd:c.spd,gust:c.gust},hourly,daily};
+}
+const SAMPLE = () => LOCATIONS.map((l,i)=>({...l,...mock(l,i)}));
+let DATA = null;
 
-$("footNote").innerHTML = "// github.com/" + escapeHtml(USERNAME) + " — self-updating";
+/* ---------- sky icons (inline SVG, 48-unit grid) ---------- */
+const SUN=(cx,cy,r)=>`<g stroke="var(--sun)" stroke-width="2.5" stroke-linecap="round">${[0,45,90,135,180,225,270,315].map(a=>{const t=a*Math.PI/180;return `<line x1="${cx+Math.cos(t)*(r+4)}" y1="${cy+Math.sin(t)*(r+4)}" x2="${cx+Math.cos(t)*(r+8)}" y2="${cy+Math.sin(t)*(r+8)}"/>`}).join("")}</g><circle cx="${cx}" cy="${cy}" r="${r}" fill="var(--sun)"/>`;
+const MOON=(cx,cy,r)=>`<path d="M${cx+r*.35} ${cy-r} a${r} ${r} 0 1 0 ${r*.65} ${r*1.55} a${r*.8} ${r*.8} 0 1 1 ${-r*.65} ${-r*1.55}z" fill="var(--moon)"/>`;
+const CLOUD=(fill,dx=0,dy=0,s=1)=>`<path transform="translate(${dx} ${dy}) scale(${s})" d="M14 38h22a8 8 0 0 0 0-16a11 11 0 0 0-21-3a8 8 0 0 0-1 19z" fill="${fill}"/>`;
+const DROPS=n=>[[17,41],[25,43],[33,41]].slice(0,n).map(([x,y])=>`<line x1="${x}" y1="${y}" x2="${x-2}" y2="${y+5}" stroke="var(--rain)" stroke-width="2.5" stroke-linecap="round"/>`).join("");
+function skyIcon(sky,size=40,night=false){
+  const orb=night?MOON(18,15,7):SUN(17,16,7);
+  const body={
+    clear: night?MOON(24,22,11):SUN(24,24,9),
+    partly: orb+CLOUD("var(--cloud)",3,4,.92),
+    cloudy: CLOUD("var(--cloud-dk)",-4,-6,.85)+CLOUD("var(--cloud)",2,-1),
+    light: CLOUD("var(--cloud)",0,-5)+DROPS(2),
+    rain: CLOUD("var(--cloud-dk)",0,-5)+DROPS(3),
+    storm: CLOUD("var(--storm)",0,-6)+`<path d="M25 30l-6 9h5l-3 8l9-11h-5l3-6z" fill="var(--sun)"/>`+`<line x1="15" y1="35" x2="13" y2="40" stroke="var(--rain)" stroke-width="2.5" stroke-linecap="round"/><line x1="35" y1="35" x2="33" y2="40" stroke="var(--rain)" stroke-width="2.5" stroke-linecap="round"/>`,
+  }[sky];
+  return `<svg class="sky" width="${size}" height="${size}" viewBox="0 0 48 48" role="img" aria-label="${SKY[sky]}"><title>${SKY[sky]}</title>${body}</svg>`;
+}
 
-// 1) Paint the snapshot immediately so the page is never empty.
-render(SNAPSHOT.map(r => ({ ...r, url:"https://github.com/" + USERNAME + "/" + r.name, asset:r.asset || null })));
+/* ---------- helpers ---------- */
+const PTS=["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
+const card8=d=>d==null?"Calm":PTS[Math.round(d/22.5)%16];
+const gustTxt=g=>g==null?"no gusts":`gusts ${g}`;
+const precipTxt=p=>p==null?"—":p.toFixed(2);
+const pct=h=>h==null?"—":h;
+const windClass=s=>s<8?"calm":s<16?"breezy":"windy";
+const windColor=s=>`var(--${windClass(s)})`;
+function beaufort(s){return s<1?"Calm":s<4?"Light air":s<8?"Light breeze":s<13?"Gentle breeze":s<19?"Moderate breeze":s<25?"Fresh breeze":s<32?"Strong breeze":"Near gale"}
 
-// 2) Try to refresh from the live GitHub API (works on the deployed site).
-refresh();
+/* Dial: arrow points DOWNWIND (from + 180) */
+function dial(from,spd,size,big){
+  const c=size/2, R=c-4, rot=from==null?0:(from+180)%360, col=windColor(spd);
+  let ticks="";
+  for(let a=0;a<360;a+=big?10:30){
+    const len=a%90===0?10:a%30===0?6:3, rad=a*Math.PI/180;
+    const x1=c+Math.sin(rad)*(R-2), y1=c-Math.cos(rad)*(R-2), x2=c+Math.sin(rad)*(R-2-len), y2=c-Math.cos(rad)*(R-2-len);
+    ticks+=`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="var(--faint)" stroke-width="${a%90===0?2:1}"/>`;
+  }
+  const lbl=big?["N","E","S","W"].map((t,i)=>{const rad=i*Math.PI/2,r=R-26;return `<text x="${c+Math.sin(rad)*r}" y="${c-Math.cos(rad)*r+6}" text-anchor="middle" fill="${t==="N"?"var(--fg)":"var(--muted)"}" font-family="Barlow Condensed,sans-serif" font-weight="700" font-size="18">${t}</text>`}).join(""):"";
+  const L=R-(big?14:8);
+  const center=big?`<circle cx="${c}" cy="${c}" r="${R*.42}" fill="var(--surface-2)"/>
+    <text x="${c}" y="${c+8}" text-anchor="middle" fill="var(--fg)" font-family="Barlow Condensed,sans-serif" font-weight="800" font-size="${size*.2}">${spd}</text>
+    <text x="${c}" y="${c+30}" text-anchor="middle" fill="var(--muted)" font-family="Barlow,sans-serif" font-size="13">mph</text>`:"";
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" role="img" aria-label="Wind from ${card8(from)} at ${spd} mph">
+    <circle cx="${c}" cy="${c}" r="${R}" fill="var(--bg)" stroke="var(--line)" stroke-width="2"/>${ticks}${lbl}
+    <g transform="rotate(${rot} ${c} ${c})" ${from==null?'display="none"':""}>
+      <line x1="${c}" y1="${c+L}" x2="${c}" y2="${c-L+ (big?14:10)}" stroke="${col}" stroke-width="${big?4:3}" stroke-linecap="round"/>
+      <circle cx="${c}" cy="${c+L}" r="${big?6:4}" fill="var(--bg)" stroke="${col}" stroke-width="${big?3:2}"/>
+      <path d="M${c} ${c-L} l${big?-10:-7} ${big?18:13} h${big?20:14} z" fill="${col}"/>
+    </g>${center}</svg>`;
+}
+const arrowMini=(from,spd)=>`<svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><g transform="rotate(${(from+180)%360} 11 11)"><line x1="11" y1="19" x2="11" y2="7" stroke="${windColor(spd)}" stroke-width="2.5" stroke-linecap="round"/><path d="M11 2 l-5 7 h10 z" fill="${windColor(spd)}"/></g></svg>`;
 
-async function refresh(){
-  $("refreshing").classList.add("on");
-  const url = "https://api.github.com/users/" + USERNAME +
-              "/repos?per_page=100&type=owner&sort=" + encodeURIComponent(OPTIONS.sort);
+/* ---------- render ---------- */
+let selected="rks", tab="hourly";
+try{selected=localStorage.getItem("bw-sel")||selected;tab=localStorage.getItem("bw-tab")||tab}catch(e){}
+
+function srcChip(l){
+  const c=l.current;
+  if(c.src==="sensor") return `<small class="src ${c.stale?"old":"ok"}" title="Sensor reading from ${l.stationName}">● ${l.station} · ${c.obsClock}${c.stale?" (old)":""}</small>`;
+  if(c.src==="model") return `<small class="src old" title="Sensor unavailable; showing model estimate">Model estimate</small>`;
+  return `<small class="src">Sample</small>`;
+}
+function renderCards(){
+  document.getElementById("cards").innerHTML=DATA.map(l=>{
+    const c=l.current;
+    return `<button class="card" type="button" data-id="${l.id}" aria-label="Open ${l.name}">
+      <div class="name"><b>${l.name}</b>${srcChip(l)}</div>
+      <div><div class="templine">${skyIcon(c.sky,52,c.night)}<div class="temp num">${c.temp}<sup>°F</sup></div></div><div class="feels">${c.skyText||SKY[c.sky]} · feels like ${c.feels}°</div></div>
+      <div class="dial">${dial(c.dir,c.spd,104,false)}</div>
+      <div></div>
+      <div class="stats">
+        <div class="stat"><div class="k">Wind</div><div class="v" style="color:${windColor(c.spd)}">${c.dir==null?"Calm":`${card8(c.dir)} ${c.spd}`} ${c.gust!=null?`<small>G ${c.gust}</small>`:""}</div></div>
+        <div class="stat"><div class="k">Rain last hr</div><div class="v" style="color:${c.precip?"var(--rain)":"var(--fg)"}">${precipTxt(c.precip)}<small>in</small></div></div>
+        <div class="stat"><div class="k">Humidity</div><div class="v">${pct(c.hum)}<small>%</small></div></div>
+      </div>
+    </button>`}).join("");
+}
+
+function tableHourly(l){
+  const h=l.hourly;
+  return `<table><thead><tr><th scope="row">Time</th>${h.map((x,i)=>`<th class="${i===0?"now":""}">${x.label}</th>`).join("")}</tr></thead><tbody>
+  <tr><th scope="row">Sky</th>${h.map(x=>`<td>${skyIcon(x.sky,34,x.night)}</td>`).join("")}</tr>
+  <tr><th scope="row">Temp</th>${h.map(x=>`<td class="t-hi">${x.temp}°</td>`).join("")}</tr>
+  <tr><th scope="row">Rain chance</th>${h.map(x=>ppCell(x.pp)).join("")}</tr>
+  <tr><th scope="row">Wind</th>${h.map(windCell).join("")}</tr></tbody></table>`;
+}
+function tableDaily(l,n){
+  const d=l.daily.slice(0,n);
+  return `<table><thead><tr><th scope="row">Day</th>${d.map((x,i)=>`<th class="${i===0?"now":""}">${x.label}<small>${x.date}</small></th>`).join("")}</tr></thead><tbody>
+  <tr><th scope="row">Sky</th>${d.map(x=>`<td>${skyIcon(x.sky,36)}</td>`).join("")}</tr>
+  <tr><th scope="row">High</th>${d.map(x=>`<td class="t-hi">${x.hi}°</td>`).join("")}</tr>
+  <tr><th scope="row">Low</th>${d.map(x=>`<td class="t-lo">${x.lo}°</td>`).join("")}</tr>
+  <tr><th scope="row">Rain chance</th>${d.map(x=>ppCell(x.pp)).join("")}</tr>
+  <tr><th scope="row">Wind (max)</th>${d.map(windCell).join("")}</tr>
+  <tr><th scope="row">First light</th>${d.map(x=>`<td class="ltime">${x.first}a</td>`).join("")}</tr>
+  <tr><th scope="row">Sunrise</th>${d.map(x=>`<td class="ltime">${x.rise}a</td>`).join("")}</tr>
+  <tr><th scope="row">Sunset</th>${d.map(x=>`<td class="ltime">${x.set}p</td>`).join("")}</tr>
+  <tr><th scope="row">Last light</th>${d.map(x=>`<td class="ltime">${x.last}p</td>`).join("")}</tr></tbody></table>`;
+}
+const ppCell=p=>`<td><div class="pp"><b class="${p<5?"zero":""}">${p}%</b><div class="pbar"><span style="width:${p}%"></span></div></div></td>`;
+const windCell=x=>`<td><div class="wcell">${arrowMini(x.dir,x.spd)}<span class="spd" style="color:${windColor(x.spd)}">${x.spd}</span><span class="g">G ${x.gust}</span><span class="d">${card8(x.dir)}</span></div></td>`;
+
+function renderDetail(dirn){
+  const l=DATA.find(x=>x.id===selected)||DATA[0], c=l.current, t=l.daily[0];
+  const el=document.getElementById("detail");
+  el.className="detail "+(dirn>0?"enter-r":dirn<0?"enter-l":"enter");
+  el.innerHTML=`
+    <div class="locbar">
+      <button class="back" type="button" data-act="back">← All locations</button>
+      <div class="switch" role="tablist" aria-label="Switch location">
+        ${DATA.map(x=>`<button type="button" data-loc="${x.id}" aria-current="${x.id===l.id}"><span class="dot" style="background:${windColor(x.current.spd)}"></span><span class="nm">${x.name}</span><span class="ab">${x.abbr}</span>${skyIcon(x.current.sky,20,x.current.night)}<b>${x.current.temp}°</b></button>`).join("")}
+      </div>
+    </div>
+    <div class="hero">
+      <div class="now">
+        <h2>${l.name}</h2>
+        <div class="date">${l.asOf}</div>
+        <div class="templine">${skyIcon(c.sky,84,c.night)}<div class="bigtemp">${c.temp}<sup>°F</sup></div></div>
+        <div class="feels"><b class="skylbl">${c.skyText||SKY[c.sky]}</b> · feels like ${c.feels}°</div>
+        <div class="stats">
+          <div class="stat"><div class="k">Rain last hr</div><div class="v" style="color:${c.precip?"var(--rain)":"var(--fg)"}">${precipTxt(c.precip)}<small>in</small></div></div>
+          <div class="stat"><div class="k">Humidity</div><div class="v">${pct(c.hum)}<small>%</small></div></div>
+        </div>
+      </div>
+      ${dial(c.dir,c.spd,260,true)}
+      <div class="windtext">
+        <span class="k">Wind from</span>
+        <span class="from" style="color:${windColor(c.spd)}">${card8(c.dir)}</span>
+        <span class="desc">${beaufort(c.spd)}</span>
+        <span class="gust">${c.dir==null?"No measurable wind":`${c.spd} mph sustained · ${gustTxt(c.gust)}`}</span>
+        <span class="scent">${c.dir==null?"Calm: scent pools, no steady drift":`Scent drifts ${card8((c.dir+180)%360)} →`}</span>
+        <span class="k" style="margin-top:8px">Next 6 hours (forecast)</span>
+        <div class="trend">${l.hourly.slice(1,7).map(h=>`<div>${arrowMini(h.dir,h.spd)}<span class="n" style="color:${windColor(h.spd)}">${h.spd}</span>${h.label}</div>`).join("")}</div>
+      </div>
+    </div>
+    <div class="light">
+        <div class="lt key"><span class="k">First light</span><span class="v">${t.first}<small> am</small></span><span class="note">Civil dawn</span></div>
+        <div class="lt"><span class="k">Sunrise</span><span class="v">${t.rise}<small> am</small></span><span class="note">&nbsp;</span></div>
+        <div class="lt"><span class="k">Sunset</span><span class="v">${t.set}<small> pm</small></span><span class="note">&nbsp;</span></div>
+        <div class="lt key"><span class="k">Last light</span><span class="v">${t.last}<small> pm</small></span><span class="note">Civil dusk</span></div>
+        <div class="lightbar" aria-hidden="true"></div>
+    </div>
+    <div class="fc-head">
+      <div class="tabs" role="tablist">
+        ${[["hourly","Hourly"],["5","5-Day"],["7","7-Day"],["10","10-Day"]].map(([k,v])=>`<button role="tab" type="button" data-tab="${k}" aria-selected="${tab===k}">${v}</button>`).join("")}
+      </div>
+      <div class="legend"><span><i style="background:var(--calm)"></i>Under 8 mph</span><span><i style="background:var(--breezy)"></i>8–15</span><span><i style="background:var(--windy)"></i>16+</span></div>
+    </div>
+    <div class="scroll">${tab==="hourly"?tableHourly(l):tableDaily(l,+tab)}</div>`;
+}
+
+/* ---------- view switching ---------- */
+const $ov=document.getElementById("overview"), $dt=document.getElementById("detail");
+function openLoc(id,dirn=0){
+  selected=id; try{localStorage.setItem("bw-sel",id)}catch(_){}
+  $ov.hidden=true; $dt.hidden=false; renderDetail(dirn);
+  try{history.replaceState(null,"","#"+id)}catch(_){}
+  if(!dirn) window.scrollTo(0,0);
+}
+function showOverview(){ $dt.hidden=true; $ov.hidden=false; renderCards(); window.scrollTo(0,0); try{history.replaceState(null,"",location.pathname+location.search)}catch(_){} }
+function step(d){
+  const i=DATA.findIndex(x=>x.id===selected), n=(i+d+DATA.length)%DATA.length;
+  openLoc(DATA[n].id,d);
+}
+
+document.getElementById("cards").addEventListener("click",e=>{
+  const b=e.target.closest(".card"); if(b) openLoc(b.dataset.id);
+});
+$dt.addEventListener("click",e=>{
+  const t=e.target.closest("[data-tab]");
+  if(t){ tab=t.dataset.tab; try{localStorage.setItem("bw-tab",tab)}catch(_){} const y=window.scrollY; renderDetail(); $dt.className="detail"; window.scrollTo(0,y); return; }
+  const l=e.target.closest("[data-loc]");
+  if(l){ const i=DATA.findIndex(x=>x.id===selected), j=DATA.findIndex(x=>x.id===l.dataset.loc); if(i!==j) openLoc(l.dataset.loc,j>i?1:-1); return; }
+  if(e.target.closest("[data-act=back]")) showOverview();
+});
+document.addEventListener("keydown",e=>{
+  if($dt.hidden) return;
+  if(e.key==="ArrowRight") step(1);
+  else if(e.key==="ArrowLeft") step(-1);
+  else if(e.key==="Escape") showOverview();
+});
+/* swipe left/right on the hero to change location */
+let sx=null,sy=null;
+$dt.addEventListener("touchstart",e=>{ if(e.target.closest(".scroll"))return; sx=e.touches[0].clientX; sy=e.touches[0].clientY; },{passive:true});
+$dt.addEventListener("touchend",e=>{
+  if(sx===null)return; const dx=e.changedTouches[0].clientX-sx, dy=e.changedTouches[0].clientY-sy; sx=null;
+  if(Math.abs(dx)>60 && Math.abs(dx)>Math.abs(dy)*1.5) step(dx<0?1:-1);
+});
+document.querySelector("h1").addEventListener("click",showOverview);
+document.querySelector("h1").style.cursor="pointer";
+/* ---------- loading, caching, refresh ---------- */
+const $status=document.getElementById("status"), $upd=document.getElementById("updated"), $btn=document.getElementById("refresh");
+const CACHE_KEY="bw-cache-v2";
+let lastFetch=0, live=false, timer=null;
+
+function render(){ if(!DATA)return; if($dt.hidden) renderCards(); else { renderCards(); const y=window.scrollY; renderDetail(); $dt.className="detail"; window.scrollTo(0,y); } }
+function setStatus(){
+  if(!live){ $status.className="pill sample"; $status.textContent="Sample data"; return; }
+  const mins=Math.round((Date.now()-lastFetch)/6e4);
+  const stale=mins>=REFRESH_MIN*2;
+  $status.className="pill "+(stale?"stale":"live");
+  $status.textContent=stale?"Stale":"Live";
+  $upd.textContent=`Updated ${new Date(lastFetch).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})} · ${mins<1?"just now":mins+" min ago"}`;
+}
+function apply(json,obs,ts){
+  const arr=Array.isArray(json)?json:[json];
+  DATA=LOCATIONS.map((l,i)=>fromApi(l,arr[i],obs&&obs[i]));
+  lastFetch=ts; live=true; render(); setStatus();
+}
+async function getObs(id){
   try{
-    const res = await fetch(url, { headers:{ "Accept":"application/vnd.github+json" } });
-    if(!res.ok) throw new Error("HTTP " + res.status);
-    let repos = await res.json();
+    const r=await fetch(obsUrl(id),{cache:"no-store"});
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    return parseObs(await r.json());
+  }catch(e){ console.warn(`Sensor ${id} unavailable:`,e); return null; }
+}
 
-    if(!OPTIONS.includeForks) repos = repos.filter(r => !r.fork);
-    const skip = new Set(EXCLUDE.map(s => s.toLowerCase()));
-    repos = repos.filter(r => !skip.has(r.name.toLowerCase()));
-
-    if(PINNED.length){
-      const byName = Object.fromEntries(repos.map(r => [r.name.toLowerCase(), r]));
-      repos = PINNED.map(n => byName[n.toLowerCase()]).filter(Boolean);
-    }
-    if(OPTIONS.limit) repos = repos.slice(0, OPTIONS.limit);
-
-    if(repos.length){
-      render(repos.map(r => ({
-        name:r.name, description:r.description, language:r.language, url:r.html_url,
-        asset: (r.homepage && r.homepage.trim())
-                 ? r.homepage.trim()
-                 : (r.has_pages ? ("https://" + USERNAME + ".github.io/" + r.name + "/") : null)
-      })));
-    }
+async function load(manual=false){
+  if(manual && Date.now()-lastFetch<MANUAL_GAP_S*1000 && live){ setStatus(); return; }
+  $btn.disabled=true; $btn.textContent="Refreshing…";
+  try{
+    const obsP=Promise.all(LOCATIONS.map(l=>getObs(l.station)));
+    const res=await fetch(apiUrl(),{cache:"no-store"});
+    if(!res.ok) throw new Error("HTTP "+res.status);
+    const json=await res.json();
+    if(json.error) throw new Error(json.reason||"API error");
+    const obs=await obsP;
+    const ts=Date.now();
+    apply(json,obs,ts);
+    try{localStorage.setItem(CACHE_KEY,JSON.stringify({ts,json,obs}))}catch(_){}
   }catch(err){
-    /* Offline or rate-limited: the snapshot is already on screen. */
+    console.warn("Live weather fetch failed:",err);
+    if(!DATA){ DATA=SAMPLE(); live=false; render(); }
+    setStatus();
+    $upd.textContent= live ? `Couldn't refresh (${err.message}). Showing last update.` : "Live data unavailable here. Showing sample data.";
   }finally{
-    $("refreshing").classList.remove("on");
+    $btn.textContent="Refresh";
+    setTimeout(()=>{$btn.disabled=false},live?MANUAL_GAP_S*1000-(Date.now()-lastFetch):0);
   }
 }
+function schedule(){ clearInterval(timer); timer=setInterval(()=>{ if(!document.hidden) load(); },REFRESH_MIN*6e4); }
 
-function render(list){
-  const c = $("repos");
-  c.innerHTML = "";
-  $("count").textContent = list.length + " " + (list.length === 1 ? "repository" : "repositories");
+$btn.addEventListener("click",()=>load(true));
+document.addEventListener("visibilitychange",()=>{
+  if(!document.hidden && Date.now()-lastFetch>REFRESH_MIN*6e4) load();
+});
+setInterval(setStatus,6e4);
 
-  for(const r of list){
-    const color = LANG_COLORS[r.language] || "#8a93a6";
-    const row = document.createElement("div");
-    row.className = "repo";
-    row.innerHTML =
-      '<a class="repo-name" href="' + escapeAttr(r.url) + '" target="_blank" rel="noopener">' + escapeHtml(r.name) + '</a>' +
-      (r.language ? '<span class="repo-lang"><span class="dot" style="background:'+color+'"></span>'+escapeHtml(r.language)+'</span>' : '') +
-      (r.description
-        ? '<span class="repo-desc">' + escapeHtml(r.description) + '</span>'
-        : '<span class="repo-desc empty">// add a description on github</span>') +
-      (r.asset
-        ? '<a class="asset" href="' + escapeAttr(r.asset) + '" target="_blank" rel="noopener" aria-label="Open the live ' + escapeAttr(r.name) + '">live <span class="arr">↗</span></a>'
-        : '');
-    c.appendChild(row);
-  }
-}
-
-function escapeHtml(s){
-  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
-function escapeAttr(s){ return escapeHtml(s); }   // hoisted; same escaping is safe for attributes
+/* boot: show cached data instantly, then fetch fresh */
+try{
+  const c=JSON.parse(localStorage.getItem(CACHE_KEY)||"null");
+  if(c && Date.now()-c.ts<6*36e5) apply(c.json,c.obs,c.ts);
+}catch(_){}
+if(location.hash && LOCATIONS.some(l=>"#"+l.id===location.hash)) selected=location.hash.slice(1);
+if(!DATA){ $status.textContent="Loading…"; }
+load().then(()=>{ if(location.hash && DATA) openLoc(selected); });
+schedule();
 </script>
-</body>
-</html>
