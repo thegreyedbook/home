@@ -96,15 +96,28 @@ button:focus-visible,.card:focus-visible{outline:2px solid var(--blaze);outline-
 .trend div{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;color:var(--faint)}
 .trend span.n{font-family:var(--display);font-weight:700;font-size:14px}
 
-.light{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
-.lt{background:var(--surface-2);border-radius:12px;padding:14px 12px;display:flex;flex-direction:column;gap:2px;border:1px solid var(--line)}
-.lt .k{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
-.lt .v{font-family:var(--display);font-weight:700;font-size:30px;font-variant-numeric:tabular-nums;line-height:1.05}
-.lt .v small{font-size:15px;color:var(--muted)}
-.lt.key{border-color:var(--blaze)}
-.lt.key .k{color:var(--blaze)}
-.lt .note{font-size:12px;color:var(--faint)}
-.lightbar{grid-column:1/-1;height:10px;border-radius:999px;background:linear-gradient(90deg,#1d2433 0%,#3b4a6b 12%,#f2c14e 20%,#f7e3a1 50%,#f2c14e 80%,#3b4a6b 88%,#1d2433 100%);opacity:.7}
+/* hi/lo in hero */
+.hilo{display:flex;gap:18px;align-items:baseline;margin-top:12px;font-family:var(--display);font-variant-numeric:tabular-nums}
+.hilo span{display:flex;align-items:baseline;gap:5px;font-weight:700;font-size:30px;line-height:1}
+.hilo i{font-style:normal;font-family:var(--body);font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.hilo .lo{color:var(--muted)}
+/* light strip: flat, read-only band (no card chrome so nothing looks tappable) */
+.lightstrip{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding-block:14px}
+.lseg{display:flex;flex-direction:column;gap:6px;padding-inline:18px;min-width:0}
+.lseg+.lseg{border-left:1px solid var(--line)}
+.lseg:first-child{padding-left:4px}
+.lseg .k{font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.lpair{display:flex;align-items:center;gap:12px}
+.lt2{display:flex;flex-direction:column;line-height:1}
+.lt2 b{font-family:var(--display);font-weight:700;font-size:30px;font-variant-numeric:tabular-nums}
+.lt2 b small{font-size:14px;color:var(--muted);font-weight:600;margin-left:2px}
+.lt2 em{font-style:normal;font-size:12px;color:var(--muted);margin-top:4px}
+.lt2.key b{color:var(--blaze)}
+.lt2.key em{color:var(--blaze)}
+.grad{flex:1;min-width:24px;max-width:90px;height:6px;border-radius:3px;align-self:center;margin-top:-14px}
+.grad.am{background:linear-gradient(90deg,#2a3550,var(--sun))}
+.grad.pm{background:linear-gradient(90deg,var(--sun),#2a3550)}
+.lseg.cd b{font-family:var(--display);font-weight:800;font-size:30px;line-height:1;font-variant-numeric:tabular-nums;white-space:nowrap}
 
 /* tabs */
 .tabs{display:inline-flex;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:3px;gap:3px}
@@ -149,7 +162,10 @@ footer{color:var(--faint);font-size:12px;display:flex;justify-content:space-betw
   .hero{grid-template-columns:1fr;justify-items:center;text-align:center;padding:18px}
   .now .stats{text-align:left}
   .windtext{align-items:center}
-  .light{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .lightstrip{grid-template-columns:1fr;gap:12px}
+  .lseg,.lseg:first-child{padding-inline:4px}
+  .lseg+.lseg{border-left:0;border-top:1px solid var(--line);padding-top:12px}
+  .hilo{justify-content:center}
   .card .temp{font-size:56px}
   .now .bigtemp{font-size:76px}
   .windtext .from{font-size:44px}
@@ -300,7 +316,7 @@ function fromApi(loc,r,obs){
     return {label:k===0?"Today":DAYS[dt.getDay()],date:`${dt.getMonth()+1}/${dt.getDate()}`,
       hi:R(d.temperature_2m_max[k]),lo:R(d.temperature_2m_min[k]),pp:R(d.precipitation_probability_max[k]),sky:skyFromCode(d.weather_code[k]),
       dir:R(d.wind_direction_10m_dominant[k]),spd:R(d.wind_speed_10m_max[k]),gust:R(d.wind_gusts_10m_max[k]),
-      first:hm(tw.dawn),rise:hmLocal(d.sunrise[k]),set:hmLocal(d.sunset[k]),last:hm(tw.dusk)};
+      firstAt:+tw.dawn,lastAt:+tw.dusk,first:hm(tw.dawn),rise:hmLocal(d.sunrise[k]),set:hmLocal(d.sunset[k]),last:hm(tw.dusk)};
   });
   const asOfDate=new Date(cu.time.slice(0,10)+"T12:00:00");
   return {...loc,
@@ -422,6 +438,13 @@ const arrowMini=(from,spd)=>`<svg width="22" height="22" viewBox="0 0 22 22" ari
 let selected="rks", tab="hourly";
 try{selected=localStorage.getItem("bw-sel")||selected;tab=localStorage.getItem("bw-tab")||tab}catch(e){}
 
+function lightStatus(l){
+  const d0=l.daily[0], d1=l.daily[1]; if(!d0||!d0.firstAt) return null;
+  const now=Date.now(), dur=ms=>{const m=Math.max(0,Math.round(ms/6e4));return m>=60?`${Math.floor(m/60)}h ${m%60}m`:`${m} min`};
+  if(now<d0.firstAt) return {k:"First light in",v:dur(d0.firstAt-now)};
+  if(now<d0.lastAt) return {k:"Last light in",v:dur(d0.lastAt-now)};
+  return {k:"First light tomorrow",v:`${d1?d1.first:"—"} am`};
+}
 function srcChip(l){
   const c=l.current;
   if(c.src==="sensor") return `<small class="src ${c.stale?"old":"ok"}" title="Sensor reading from ${l.stationName}">● ${l.station} · ${c.obsClock}${c.stale?" (old)":""}</small>`;
@@ -485,6 +508,7 @@ function renderDetail(dirn){
         <div class="date">${l.asOf}</div>
         <div class="templine">${skyIcon(c.sky,84,c.night)}<div class="bigtemp">${c.temp}<sup>°F</sup></div></div>
         <div class="feels"><b class="skylbl">${c.skyText||SKY[c.sky]}</b> · feels like ${c.feels}°</div>
+        <div class="hilo" aria-label="Today's high and low"><span><i>High</i>${t.hi}°</span><span class="lo"><i>Low</i>${t.lo}°</span></div>
         <div class="stats">
           <div class="stat"><div class="k">Rain last hr</div><div class="v" style="color:${c.precip?"var(--rain)":"var(--fg)"}">${precipTxt(c.precip)}<small>in</small></div></div>
           <div class="stat"><div class="k">Humidity</div><div class="v">${pct(c.hum)}<small>%</small></div></div>
@@ -501,12 +525,24 @@ function renderDetail(dirn){
         <div class="trend">${l.hourly.slice(1,7).map(h=>`<div>${arrowMini(h.dir,h.spd)}<span class="n" style="color:${windColor(h.spd)}">${h.spd}</span>${h.label}</div>`).join("")}</div>
       </div>
     </div>
-    <div class="light">
-        <div class="lt key"><span class="k">First light</span><span class="v">${t.first}<small> am</small></span><span class="note">Civil dawn</span></div>
-        <div class="lt"><span class="k">Sunrise</span><span class="v">${t.rise}<small> am</small></span><span class="note">&nbsp;</span></div>
-        <div class="lt"><span class="k">Sunset</span><span class="v">${t.set}<small> pm</small></span><span class="note">&nbsp;</span></div>
-        <div class="lt key"><span class="k">Last light</span><span class="v">${t.last}<small> pm</small></span><span class="note">Civil dusk</span></div>
-        <div class="lightbar" aria-hidden="true"></div>
+    <div class="lightstrip" aria-label="Light times today">
+      <div class="lseg">
+        <span class="k">Morning</span>
+        <div class="lpair">
+          <div class="lt2 key"><b>${t.first}<small>am</small></b><em>First light</em></div>
+          <div class="grad am" aria-hidden="true"></div>
+          <div class="lt2"><b>${t.rise}<small>am</small></b><em>Sunrise</em></div>
+        </div>
+      </div>
+      <div class="lseg">
+        <span class="k">Evening</span>
+        <div class="lpair">
+          <div class="lt2"><b>${t.set}<small>pm</small></b><em>Sunset</em></div>
+          <div class="grad pm" aria-hidden="true"></div>
+          <div class="lt2 key"><b>${t.last}<small>pm</small></b><em>Last light</em></div>
+        </div>
+      </div>
+      ${(()=>{const ls=lightStatus(l);return ls?`<div class="lseg cd" id="lightcd"><span class="k">${ls.k}</span><b>${ls.v}</b></div>`:""})()}
     </div>
     <div class="fc-head">
       <div class="tabs" role="tablist">
@@ -562,7 +598,13 @@ const CACHE_KEY="bw-cache-v2";
 let lastFetch=0, live=false, timer=null;
 
 function render(){ if(!DATA)return; if($dt.hidden) renderCards(); else { renderCards(); const y=window.scrollY; renderDetail(); $dt.className="detail"; window.scrollTo(0,y); } }
+function tickLight(){
+  const el=document.getElementById("lightcd"); if(!el||!DATA||$dt.hidden) return;
+  const l=DATA.find(x=>x.id===selected), ls=l&&lightStatus(l); if(!ls) return;
+  el.innerHTML=`<span class="k">${ls.k}</span><b>${ls.v}</b>`;
+}
 function setStatus(){
+  tickLight();
   if(!live){ $status.className="pill sample"; $status.textContent="Sample data"; return; }
   const mins=Math.round((Date.now()-lastFetch)/6e4);
   const stale=mins>=REFRESH_MIN*2;
